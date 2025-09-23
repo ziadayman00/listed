@@ -170,7 +170,7 @@ const AdminDashboard = () => {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
               <p className="text-gray-600 mt-2">
-                Welcome to the Listed admin panel. Here's an overview of your application.
+                Welcome to the Listed admin panel. Here&apos;s an overview of your application.
                 {lastFetch && (
                   <span className="text-sm text-gray-500 block mt-1">
                     Last updated {getTimeAgo(new Date(lastFetch).toISOString())}

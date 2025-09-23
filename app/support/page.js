@@ -130,7 +130,7 @@ export default function SupportPage() {
               No Support Tickets
             </h3>
             <p className="text-gray-600 mb-6">
-              You haven't submitted any support requests yet.
+              You haven&apos;t submitted any support requests yet.
             </p>
             <Button
               onClick={() => setIsSupportModalOpen(true)}
