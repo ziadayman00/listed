@@ -1,0 +1,414 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum AIActionType {
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_PRIORITIZED
+  TASK_SCHEDULED
+  TASK_ANALYZED
+  TASK_SUGGESTED
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ContactStatus {
+  NEW
+  READ
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+// NextAuth required models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verificationtokens")
+}
+
+// User model (compatible with NextAuth)
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  accounts        Account[]
+  sessions        Session[]
+  tasks           Task[]
+  aiLogs          AILog[]
+  supportTickets  SupportTicket[]
+  contactMessages ContactMessage[]
+  activities      UserActivity[]
+  deletedTasks    DeletedTask[]
+  reminderQueue   ReminderQueue[] // Add this line
+
+  @@map("users")
+}
+
+// Tasks model
+model Task {
+  id            String       @id @default(cuid())
+  title         String
+  description   String?      @db.Text
+  status        TaskStatus   @default(PENDING)
+  priority      TaskPriority @default(MEDIUM)
+  dueDate       DateTime?
+  hasDueTime    Boolean      @default(false)
+  isAIGenerated Boolean      @default(false)
+
+  // New enhanced fields
+  tags          String[]
+  category      String?
+  estimatedTime Int?
+  reminders     Json?
+
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  // Relations
+  userId        String
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  aiLogs        AILog[]
+  deletedTask   DeletedTask?
+  reminderQueue ReminderQueue[] // Add this line
+
+  // Indexes for better performance
+  @@index([userId])
+  @@index([status])
+  @@index([priority])
+  @@index([dueDate])
+  @@index([createdAt])
+  @@index([category])
+  @@index([tags])
+  @@map("tasks")
+}
+// AI Logs model
+model AILog {
+  id       String       @id @default(cuid())
+  action   AIActionType
+  prompt   String       @db.Text
+  response String       @db.Text
+  metadata Json? // Store additional AI context/data
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  taskId String?
+  task   Task?   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  // Indexes for better performance
+  @@index([userId])
+  @@index([taskId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("ai_logs")
+}
+
+// Support Tickets model
+model SupportTicket {
+  id          String         @id @default(cuid())
+  subject     String
+  description String         @db.Text
+  status      TicketStatus   @default(OPEN)
+  priority    TicketPriority @default(MEDIUM)
+
+  // Timestamps
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  resolvedAt DateTime?
+
+  // Relations
+  userId   String
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages SupportMessage[]
+
+  // Indexes
+  @@index([userId])
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
+  @@map("support_tickets")
+}
+
+// Support Messages model
+model SupportMessage {
+  id         String  @id @default(cuid())
+  content    String  @db.Text
+  isFromUser Boolean @default(true) // true if from user, false if from support
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations
+  ticketId String
+  ticket   SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@index([ticketId])
+  @@index([createdAt])
+  @@map("support_messages")
+}
+
+// Contact Messages model
+model ContactMessage {
+  id      String        @id @default(cuid())
+  name    String
+  email   String
+  message String        @db.Text
+  status  ContactStatus @default(NEW)
+
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  respondedAt DateTime?
+
+  // Relations (optional - can be from authenticated or anonymous users)
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // Indexes for better performance
+  @@index([userId])
+  @@index([status])
+  @@index([email])
+  @@index([createdAt])
+  @@map("contact_messages")
+}
+
+// Admin User model for dashboard access
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String // Hashed password
+  isActive     Boolean   @default(true)
+  isMainAdmin  Boolean   @default(false) // True for zyadd.aymann@gmail.com
+  lastLoginAt  DateTime?
+
+  // Email verification
+  isEmailVerified Boolean @default(false)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations to verification codes
+  verificationCodes AdminVerificationCode[]
+
+  // Indexes
+  @@index([email])
+  @@index([isActive])
+  @@map("admin_users")
+}
+
+// Admin verification codes for email verification
+model AdminVerificationCode {
+  id        String                @id @default(cuid())
+  code      String // 6-digit code
+  email     String // Email to send code to
+  type      AdminVerificationType @default(LOGIN)
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations
+  adminUserId String?
+  adminUser   AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@index([email, code])
+  @@index([expiresAt])
+  @@map("admin_verification_codes")
+}
+
+// User Activity model for tracking user actions
+model UserActivity {
+  id          String           @id @default(cuid())
+  type        UserActivityType
+  description String?
+  metadata    Json? // Store additional data like IP, user agent, etc.
+  createdAt   DateTime         @default(now())
+
+  // Relations
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("user_activities")
+}
+
+// Enum for admin verification types
+enum AdminVerificationType {
+  LOGIN
+  PASSWORD_RESET
+}
+
+enum UserActivityType {
+  LOGIN
+  LOGOUT
+  REGISTER
+  PROFILE_UPDATE
+  PASSWORD_CHANGE
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_DELETED
+  SUPPORT_TICKET_CREATED
+  CONTACT_MESSAGE_SENT
+}
+
+// New model for soft-deleted tasks
+// Updated DeletedTask model for proper soft delete functionality
+model DeletedTask {
+  id             String @id @default(cuid())
+  originalTaskId String @unique // Link to the original task ID
+
+  // Copy all task fields for complete restoration
+  title         String
+  description   String?      @db.Text
+  status        TaskStatus   @default(PENDING)
+  priority      TaskPriority @default(MEDIUM)
+  dueDate       DateTime?
+  hasDueTime    Boolean      @default(false)
+  isAIGenerated Boolean      @default(false)
+  tags          String[]
+  category      String?
+  estimatedTime Int?
+  reminders     Json?
+
+  // Original timestamps (preserved from original task)
+  originalCreatedAt   DateTime
+  originalUpdatedAt   DateTime
+  originalCompletedAt DateTime?
+
+  // Deletion timestamp
+  deletedAt DateTime @default(now())
+
+  // Relations
+  userId       String
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  originalTask Task   @relation(fields: [originalTaskId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@index([userId])
+  @@index([deletedAt])
+  @@index([originalTaskId])
+  @@map("deleted_tasks")
+}
+
+model ReminderQueue {
+  id           String         @id @default(cuid())
+  taskId       String
+  userId       String
+  type         ReminderType   @default(DUE_DATE)
+  scheduledFor DateTime
+  status       ReminderStatus @default(PENDING)
+  attempts     Int            @default(0)
+  lastAttempt  DateTime?
+  errorMessage String?
+  createdAt    DateTime       @default(now())
+
+  // Relations
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Indexes for performance
+  @@index([scheduledFor, status])
+  @@index([userId])
+  @@index([taskId])
+  @@map("reminder_queue")
+}
+
+enum ReminderType {
+  DUE_DATE
+  OVERDUE
+  CUSTOM
+}
+
+enum ReminderStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
+}
