@@ -8,6 +8,7 @@ import ConditionalLayout from "@/components/ConditionalLayout";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800", "900"], // Add this
 });
 
 const geistMono = Geist_Mono({
@@ -16,35 +17,28 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Listed - Modern SaaS Solution",
-  description: "The modern SaaS platform for your business needs",
+  title: "Listed - AI-Powered Task Management",
+  description:
+    "Smart task management with AI that learns your workflow and helps you accomplish more with less effort",
   icons: {
     icon: [
-      { url: '/fav.png', sizes: '32x32', type: 'image/png' },
-      { url: '/fav.png', sizes: '16x16', type: 'image/png' },
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
     ],
-    shortcut: '/fav.png',
-    apple: '/fav.png',
-    other: [
-      {
-        rel: 'icon',
-        url: '/fav.png',
-      },
-    ],
+    shortcut: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
   },
 };
-
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-          <SessionProvider>
-            <ConditionalLayout>
-              {children}
-            </ConditionalLayout>
-          </SessionProvider>
+        <SessionProvider>
+          <ConditionalLayout>{children}</ConditionalLayout>
+        </SessionProvider>
       </body>
     </html>
   );
