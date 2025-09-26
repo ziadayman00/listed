@@ -4,12 +4,12 @@ import { useState, useEffect } from 'react'
 import { X, Plus, Calendar, Flag, Clock, Tag, ChevronDown, ChevronUp, Edit } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
-export default function AddTaskModal({ 
-  onClose, 
-  onTaskCreate, 
-  onTaskUpdate, 
-  editMode = false, 
-  taskToEdit = null 
+export default function AddTaskModal({
+  onClose,
+  onTaskCreate,
+  onTaskUpdate,
+  editMode = false,
+  taskToEdit = null
 }) {
   const [taskData, setTaskData] = useState({
     title: '',
@@ -30,44 +30,68 @@ export default function AddTaskModal({
   const [errors, setErrors] = useState({})
   const [currentTag, setCurrentTag] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
-  
+
   // Get today's date in YYYY-MM-DD format for min date
   const today = new Date().toISOString().split('T')[0]
 
   // Pre-fill form if editing or defaultData is provided
   useEffect(() => {
     if (editMode && taskToEdit) {
+      // Helper function to format date without timezone issues
+      const formatDateForInput = (dateString) => {
+        if (!dateString) return '';
+
+        // If it's already in YYYY-MM-DD format, use it directly
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+          return dateString;
+        }
+
+        // For ISO strings or other formats, create date and format locally
+        const date = new Date(dateString);
+        // Use local date methods to avoid timezone shifts
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      const formatTimeForInput = (dateString, hasDueTime) => {
+        if (!dateString || !hasDueTime) return '';
+
+        const date = new Date(dateString);
+        // Use local time methods
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${hours}:${minutes}`;
+      };
+
       // Format the task data for editing
       const formattedData = {
         title: taskToEdit.title || '',
         description: taskToEdit.description || '',
         priority: taskToEdit.priority?.toLowerCase() || 'medium',
-        dueDate: taskToEdit.dueDate ? new Date(taskToEdit.dueDate).toISOString().split('T')[0] : '',
-        dueTime: taskToEdit.dueDate && taskToEdit.hasDueTime ? (() => {
-          const d = new Date(taskToEdit.dueDate)
-          const hh = String(d.getHours()).padStart(2, '0')
-          const mm = String(d.getMinutes()).padStart(2, '0')
-          return `${hh}:${mm}`
-        })() : '',
+        // Use both dueDate and dueDateDay fields
+        dueDate: formatDateForInput(taskToEdit.dueDateDay || taskToEdit.dueDate),
+        dueTime: formatTimeForInput(taskToEdit.dueDate, taskToEdit.hasDueTime),
         status: taskToEdit.status?.toLowerCase() || 'pending',
         tags: taskToEdit.tags || [],
         category: taskToEdit.category || '',
         estimatedTime: taskToEdit.estimatedTime?.toString() || '',
         reminders: taskToEdit.reminders || { enabled: false, time: '1day' }
-      }
-      
-      setTaskData(formattedData)
-      
+      };
+
+      setTaskData(formattedData);
+
       // Show advanced options if there's existing advanced data
       if (taskToEdit.category || taskToEdit.estimatedTime || taskToEdit.tags?.length > 0 || taskToEdit.description) {
-        setShowAdvanced(true)
+        setShowAdvanced(true);
       }
     }
-  }, [editMode, taskToEdit])
+  }, [editMode, taskToEdit]);
 
   const validateForm = () => {
     const newErrors = {}
-    
+
     if (!taskData.title.trim()) {
       newErrors.title = 'Title is required'
     } else if (taskData.title.trim().length < 3) {
@@ -75,11 +99,11 @@ export default function AddTaskModal({
     } else if (taskData.title.trim().length > 100) {
       newErrors.title = 'Title must be less than 100 characters'
     }
-    
+
     if (taskData.description.length > 500) {
       newErrors.description = 'Description must be less than 500 characters'
     }
-    
+
     if (taskData.dueDate && taskData.dueDate < today && !editMode) {
       newErrors.dueDate = 'Due date cannot be in the past'
     }
@@ -98,18 +122,18 @@ export default function AddTaskModal({
         newErrors.dueDate = 'Select a date when providing a time'
       }
     }
-    
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+
     if (!validateForm()) {
       return
     }
-    
+
     setIsLoading(true)
     setErrors({})
 
@@ -147,7 +171,7 @@ export default function AddTaskModal({
       }
 
       const updatedTask = await response.json()
-      
+
       // Clear draft on success
       if (typeof window !== 'undefined') {
         try {
@@ -156,16 +180,16 @@ export default function AddTaskModal({
           // Silently handle localStorage errors
         }
       }
-      
+
       // Call appropriate callback
       if (isEdit && onTaskUpdate) {
         onTaskUpdate(updatedTask)
       } else if (!isEdit && onTaskCreate) {
         onTaskCreate(updatedTask)
       }
-      
+
       onClose()
-      
+
     } catch (error) {
       console.error(`Error ${editMode ? 'updating' : 'creating'} task:`, error)
       setErrors({ submit: error.message })
@@ -213,7 +237,7 @@ export default function AddTaskModal({
           }
         }
       }, 2000)
-      
+
       return () => clearTimeout(draftTimer)
     }
   }, [taskData, editMode])
@@ -255,7 +279,7 @@ export default function AddTaskModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50">
-      <div 
+      <div
         className="bg-white w-full h-full sm:h-auto sm:max-h-[95vh] sm:rounded-2xl sm:max-w-lg sm:m-4 overflow-y-auto"
         onKeyDown={handleKeyDown}
       >
@@ -286,7 +310,7 @@ export default function AddTaskModal({
               {errors.submit}
             </div>
           )}
-          
+
           {/* Task Title - Larger on mobile */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -299,12 +323,11 @@ export default function AddTaskModal({
               value={taskData.title}
               onChange={(e) => {
                 setTaskData({ ...taskData, title: e.target.value })
-                if (errors.title) setErrors({...errors, title: ''})
+                if (errors.title) setErrors({ ...errors, title: '' })
               }}
               placeholder="What needs to be done?"
-              className={`w-full px-4 py-4 sm:py-3 text-base sm:text-sm border rounded-lg focus:ring-2 focus:ring-[#784e87] focus:border-transparent ${
-                errors.title ? 'border-red-300 bg-red-50' : 'border-gray-200'
-              }`}
+              className={`w-full px-4 py-4 sm:py-3 text-base sm:text-sm border rounded-lg focus:ring-2 focus:ring-[#784e87] focus:border-transparent ${errors.title ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                }`}
             />
             <div className="flex justify-between mt-1">
               {errors.title && (
@@ -328,11 +351,10 @@ export default function AddTaskModal({
                   key={priority.value}
                   type="button"
                   onClick={() => setTaskData({ ...taskData, priority: priority.value })}
-                  className={`px-3 py-3 sm:py-2 rounded-lg text-sm font-medium border transition-colors flex items-center justify-center gap-1 ${
-                    taskData.priority === priority.value
-                      ? `${priority.color}`
-                      : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
-                  }`}
+                  className={`px-3 py-3 sm:py-2 rounded-lg text-sm font-medium border transition-colors flex items-center justify-center gap-1 ${taskData.priority === priority.value
+                    ? `${priority.color}`
+                    : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                    }`}
                 >
                   <span className="text-sm">{priority.icon}</span>
                   <span className="hidden xs:inline">{priority.label}</span>
@@ -372,11 +394,10 @@ export default function AddTaskModal({
               min={editMode ? undefined : today}
               onChange={(e) => {
                 setTaskData({ ...taskData, dueDate: e.target.value })
-                if (errors.dueDate) setErrors({...errors, dueDate: ''})
+                if (errors.dueDate) setErrors({ ...errors, dueDate: '' })
               }}
-              className={`w-full px-4 py-4 sm:py-3 text-base sm:text-sm border rounded-lg focus:ring-2 focus:ring-[#784e87] focus:border-transparent ${
-                errors.dueDate ? 'border-red-300 bg-red-50' : 'border-gray-200'
-              }`}
+              className={`w-full px-4 py-4 sm:py-3 text-base sm:text-sm border rounded-lg focus:ring-2 focus:ring-[#784e87] focus:border-transparent ${errors.dueDate ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                }`}
             />
             {errors.dueDate && (
               <p className="mt-1 text-sm text-red-600">{errors.dueDate}</p>
@@ -395,9 +416,8 @@ export default function AddTaskModal({
                     setTaskData({ ...taskData, dueTime: e.target.value })
                     if (errors.dueTime) setErrors({ ...errors, dueTime: '' })
                   }}
-                  className={`w-full px-4 py-4 sm:py-3 text-base sm:text-sm border rounded-lg focus:ring-2 focus:ring-[#784e87] focus:border-transparent ${
-                    errors.dueTime ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                  }`}
+                  className={`w-full px-4 py-4 sm:py-3 text-base sm:text-sm border rounded-lg focus:ring-2 focus:ring-[#784e87] focus:border-transparent ${errors.dueTime ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                    }`}
                 />
                 {errors.dueTime && (
                   <p className="mt-1 text-sm text-red-600">{errors.dueTime}</p>
@@ -488,14 +508,13 @@ export default function AddTaskModal({
                   value={taskData.description}
                   onChange={(e) => {
                     setTaskData({ ...taskData, description: e.target.value })
-                    if (errors.description) setErrors({...errors, description: ''})
+                    if (errors.description) setErrors({ ...errors, description: '' })
                   }}
                   placeholder="Add more details..."
                   rows={3}
                   maxLength={500}
-                  className={`w-full px-4 py-4 sm:py-3 text-base sm:text-sm border rounded-lg focus:ring-2 focus:ring-[#784e87] focus:border-transparent resize-none ${
-                    errors.description ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                  }`}
+                  className={`w-full px-4 py-4 sm:py-3 text-base sm:text-sm border rounded-lg focus:ring-2 focus:ring-[#784e87] focus:border-transparent resize-none ${errors.description ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                    }`}
                 />
                 <div className="flex justify-between mt-1">
                   {errors.description && (
@@ -575,12 +594,11 @@ export default function AddTaskModal({
                   value={taskData.estimatedTime}
                   onChange={(e) => {
                     setTaskData({ ...taskData, estimatedTime: e.target.value })
-                    if (errors.estimatedTime) setErrors({...errors, estimatedTime: ''})
+                    if (errors.estimatedTime) setErrors({ ...errors, estimatedTime: '' })
                   }}
                   placeholder="e.g., 30"
-                  className={`w-full px-4 py-4 sm:py-3 text-base sm:text-sm border rounded-lg focus:ring-2 focus:ring-[#784e87] focus:border-transparent ${
-                    errors.estimatedTime ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                  }`}
+                  className={`w-full px-4 py-4 sm:py-3 text-base sm:text-sm border rounded-lg focus:ring-2 focus:ring-[#784e87] focus:border-transparent ${errors.estimatedTime ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                    }`}
                 />
                 {errors.estimatedTime && (
                   <p className="mt-1 text-sm text-red-600">{errors.estimatedTime}</p>

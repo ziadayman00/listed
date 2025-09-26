@@ -126,7 +126,8 @@ model Task {
   description   String?      @db.Text
   status        TaskStatus   @default(PENDING)
   priority      TaskPriority @default(MEDIUM)
-  dueDate       DateTime?
+  dueDate       DateTime?    // For tasks with specific time
+  dueDateDay    String?      // ADD THIS LINE - for date-only tasks (YYYY-MM-DD)
   hasDueTime    Boolean      @default(false)
   isAIGenerated Boolean      @default(false)
 
@@ -146,13 +147,14 @@ model Task {
   user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   aiLogs        AILog[]
   deletedTask   DeletedTask?
-  reminderQueue ReminderQueue[] // Add this line
+  reminderQueue ReminderQueue[]
 
   // Indexes for better performance
   @@index([userId])
   @@index([status])
   @@index([priority])
   @@index([dueDate])
+  @@index([dueDateDay])  // ADD THIS INDEX TOO
   @@index([createdAt])
   @@index([category])
   @@index([tags])
@@ -349,7 +351,8 @@ model DeletedTask {
   description   String?      @db.Text
   status        TaskStatus   @default(PENDING)
   priority      TaskPriority @default(MEDIUM)
-  dueDate       DateTime?
+  dueDate       DateTime?    // For tasks with specific time
+  dueDateDay    String?      // For date-only tasks (YYYY-MM-DD format)
   hasDueTime    Boolean      @default(false)
   isAIGenerated Boolean      @default(false)
   tags          String[]
@@ -374,6 +377,7 @@ model DeletedTask {
   @@index([userId])
   @@index([deletedAt])
   @@index([originalTaskId])
+  @@index([dueDateDay])  // Index for the new field
   @@map("deleted_tasks")
 }
 

@@ -1,4 +1,4 @@
-// /api/tasks/[id]/route.js - Enhanced PATCH method
+// FIXED /api/tasks/[id]/route.js 
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -13,9 +13,7 @@ const updateTaskSchema = z.object({
   description: z.string().max(500, 'Description must be less than 500 characters').optional(),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
   status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
-  // Backward-compatible full ISO date string
   dueDate: z.string().nullable().optional(),
-  // New separate fields
   dueDateDay: z.string().regex(dateRegex, 'Invalid date format, expected YYYY-MM-DD').nullable().optional(),
   dueTime: z.string().regex(timeRegex, 'Invalid time format, expected HH:mm').nullable().optional(),
   tags: z.array(z.string()).max(5, 'Maximum 5 tags allowed').optional(),
@@ -30,40 +28,86 @@ const updateTaskSchema = z.object({
   return true
 }, { message: 'A date (dueDateDay or dueDate) is required when providing a time', path: ['dueTime'] })
 
+// FIXED: buildDueDateAndFlag function for PATCH operations
 function buildDueDateAndFlag(input, existing) {
-  // Returns { dueDate: Date|null|undefined, hasDueTime: boolean|undefined }
-  // undefined means not provided in update
+  // Returns { dueDate: Date|null|undefined, hasDueTime: boolean|undefined, dueDateDay: string|null|undefined }
   const hasProvidedAny = ('dueDate' in input) || ('dueDateDay' in input) || ('dueTime' in input)
-  if (!hasProvidedAny) return { dueDate: undefined, hasDueTime: undefined }
-  if (input.dueDate !== undefined && input.dueDate !== null) {
-    return { dueDate: new Date(input.dueDate), hasDueTime: !/T00:00:00/.test(input.dueDate) }
+  if (!hasProvidedAny) {
+    return { dueDate: undefined, hasDueTime: undefined, dueDateDay: undefined }
   }
-  if (input.dueDate === null) {
-    return { dueDate: null, hasDueTime: false }
-  }
-  // If only day/time provided
-  const baseDay = input.dueDateDay ?? (existing?.dueDate ? existing.dueDate.toISOString().slice(0,10) : undefined)
-  if (!baseDay) return { dueDate: undefined, hasDueTime: undefined }
-  const [y, m, d] = baseDay.split('-').map(n => parseInt(n, 10))
-  let hours = 0, minutes = 0
-  let hasDueTime = false
-  if (input.dueTime !== undefined) {
-    if (input.dueTime !== null) {
-      const [hh, mm] = input.dueTime.split(':').map(n => parseInt(n, 10))
-      hours = hh; minutes = mm; hasDueTime = true
-    } else {
-      hasDueTime = false
+
+  // Handle backward-compatible full ISO string
+  if (input.dueDate !== undefined) {
+    if (input.dueDate === null) {
+      return { dueDate: null, hasDueTime: false, dueDateDay: null }
     }
-  } else if (existing?.hasDueTime) {
-    // preserve existing time
-    const ex = new Date(existing.dueDate)
-    hours = ex.getHours(); minutes = ex.getMinutes(); hasDueTime = true
+    
+    const date = new Date(input.dueDate)
+    const hasDueTime = !/T00:00:00/.test(input.dueDate)
+    
+    // Extract date part for dueDateDay
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const dueDateDay = `${year}-${month}-${day}`
+    
+    return { 
+      dueDate: hasDueTime ? date : null, 
+      hasDueTime, 
+      dueDateDay 
+    }
   }
-  const date = new Date(y, (m - 1), d, hours, minutes, 0, 0)
-  return { dueDate: date, hasDueTime }
+
+  // Handle separate dueDateDay and dueTime fields
+  let dueDateDay = input.dueDateDay
+  
+  if (dueDateDay === null) {
+    return { dueDate: null, hasDueTime: false, dueDateDay: null }
+  }
+  
+  if (dueDateDay === undefined) {
+    // Try to get from existing task
+    dueDateDay = existing?.dueDateDay || (existing?.dueDate ? 
+      existing.dueDate.toISOString().slice(0, 10) : undefined)
+  }
+  
+  if (!dueDateDay) {
+    return { dueDate: undefined, hasDueTime: undefined, dueDateDay: undefined }
+  }
+
+  // Handle time component
+  let hasDueTime = false
+  let hours = 0, minutes = 0
+
+  if ('dueTime' in input) {
+    if (input.dueTime === null) {
+      // Explicitly removing time
+      hasDueTime = false
+    } else if (input.dueTime) {
+      // Setting new time
+      const [hh, mm] = input.dueTime.split(':').map(n => parseInt(n, 10))
+      hours = hh
+      minutes = mm
+      hasDueTime = true
+    }
+  } else if (existing?.hasDueTime && existing?.dueDate) {
+    // Preserve existing time if not explicitly changed
+    hours = existing.dueDate.getHours()
+    minutes = existing.dueDate.getMinutes()
+    hasDueTime = true
+  }
+
+  const [y, m, d] = dueDateDay.split('-').map(n => parseInt(n, 10))
+  const date = hasDueTime ? new Date(y, m - 1, d, hours, minutes, 0, 0) : null
+
+  return { 
+    dueDate: date, 
+    hasDueTime, 
+    dueDateDay 
+  }
 }
 
-// PATCH /api/tasks/[id] - Enhanced update handling
+// PATCH /api/tasks/[id] - Fixed update handling
 export async function PATCH(request, context) {
   try {
     const session = await getServerSession(authOptions)
@@ -93,12 +137,11 @@ export async function PATCH(request, context) {
 
     // Prepare update data
     const updateData = {
-      ...validatedData,
       updatedAt: new Date()
     }
 
-    // Clean up string fields
-    if (validatedData.title) {
+    // Handle basic fields
+    if (validatedData.title !== undefined) {
       updateData.title = validatedData.title.trim()
     }
     if (validatedData.description !== undefined) {
@@ -107,11 +150,28 @@ export async function PATCH(request, context) {
     if (validatedData.category !== undefined) {
       updateData.category = validatedData.category?.trim() || null
     }
+    if (validatedData.priority !== undefined) {
+      updateData.priority = validatedData.priority
+    }
+    if (validatedData.status !== undefined) {
+      updateData.status = validatedData.status
+    }
+    if (validatedData.tags !== undefined) {
+      updateData.tags = validatedData.tags
+    }
+    if (validatedData.estimatedTime !== undefined) {
+      updateData.estimatedTime = validatedData.estimatedTime
+    }
+    if (validatedData.reminders !== undefined) {
+      updateData.reminders = validatedData.reminders
+    }
 
-    // Handle due date (support new separate fields)
-    const built = buildDueDateAndFlag(validatedData, existingTask)
-    if (built.dueDate !== undefined) updateData.dueDate = built.dueDate
-    if (built.hasDueTime !== undefined) updateData.hasDueTime = built.hasDueTime
+    // FIXED: Handle due date fields
+    const { dueDate, hasDueTime, dueDateDay } = buildDueDateAndFlag(validatedData, existingTask)
+    
+    if (dueDate !== undefined) updateData.dueDate = dueDate
+    if (hasDueTime !== undefined) updateData.hasDueTime = hasDueTime
+    if (dueDateDay !== undefined) updateData.dueDateDay = dueDateDay
 
     // Handle completion timestamp
     if (validatedData.status === 'COMPLETED' && existingTask.status !== 'COMPLETED') {
@@ -147,7 +207,15 @@ export async function PATCH(request, context) {
       }
     }
 
-    return NextResponse.json(task)
+    // FIXED: Format task for client response
+    const formattedTask = {
+      ...task,
+      dueDate: task.hasDueTime ? task.dueDate?.toISOString() : task.dueDateDay,
+      dueDateDay: task.dueDateDay,
+      hasDueTime: task.hasDueTime
+    }
+
+    return NextResponse.json(formattedTask)
 
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -165,7 +233,7 @@ export async function PATCH(request, context) {
   }
 }
 
-// DELETE method - Enhanced soft delete with complete data preservation
+// FIXED DELETE method - Update to include dueDateDay
 export async function DELETE(request, context) {
   try {
     const session = await getServerSession(authOptions)
@@ -200,6 +268,7 @@ export async function DELETE(request, context) {
         status: existingTask.status,
         priority: existingTask.priority,
         dueDate: existingTask.dueDate,
+        dueDateDay: existingTask.dueDateDay, // ADD THIS LINE
         hasDueTime: existingTask.hasDueTime,
         isAIGenerated: existingTask.isAIGenerated,
         tags: existingTask.tags,
