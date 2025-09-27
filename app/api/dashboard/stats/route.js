@@ -12,6 +12,13 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const now = new Date()
+    const today = now.toISOString().split('T')[0] // YYYY-MM-DD format
+    const todayStart = new Date(now.setHours(0, 0, 0, 0))
+    const todayEnd = new Date(now.setHours(23, 59, 59, 999))
+    const weekFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    const weekFromNowString = weekFromNow.toISOString().split('T')[0]
+
     // Get task statistics
     const [
       totalTasks,
@@ -51,36 +58,75 @@ export async function GET() {
         }
       }),
       
-      // Overdue tasks
+      // Overdue tasks - Fixed to handle both dueDate and dueDateDay
       prisma.task.count({
         where: { 
           userId: session.user.id,
           status: { in: ['PENDING', 'IN_PROGRESS'] },
-          dueDate: { lt: new Date() }
+          OR: [
+            // Tasks with specific datetime that are overdue
+            {
+              dueDate: { lt: now },
+              NOT: { dueDate: null }
+            },
+            // Tasks with date-only that are overdue
+            {
+              dueDate: null,
+              dueDateDay: { lt: today },
+              NOT: { dueDateDay: null }
+            }
+          ]
         }
       }),
       
-      // Tasks due today
+      // Tasks due today - Fixed to handle both date types
       prisma.task.count({
         where: { 
           userId: session.user.id,
           status: { in: ['PENDING', 'IN_PROGRESS'] },
-          dueDate: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0)),
-            lt: new Date(new Date().setHours(23, 59, 59, 999))
-          }
+          OR: [
+            // Tasks with specific datetime due today
+            {
+              dueDate: {
+                gte: todayStart,
+                lte: todayEnd
+              },
+              NOT: { dueDate: null }
+            },
+            // Tasks with date-only due today
+            {
+              dueDate: null,
+              dueDateDay: today,
+              NOT: { dueDateDay: null }
+            }
+          ]
         }
       }),
       
-      // Tasks due this week
+      // Tasks due this week - Fixed to handle both date types
       prisma.task.count({
         where: { 
           userId: session.user.id,
           status: { in: ['PENDING', 'IN_PROGRESS'] },
-          dueDate: {
-            gte: new Date(),
-            lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-          }
+          OR: [
+            // Tasks with specific datetime due this week
+            {
+              dueDate: {
+                gte: now,
+                lte: weekFromNow
+              },
+              NOT: { dueDate: null }
+            },
+            // Tasks with date-only due this week
+            {
+              dueDate: null,
+              dueDateDay: {
+                gte: today,
+                lte: weekFromNowString
+              },
+              NOT: { dueDateDay: null }
+            }
+          ]
         }
       })
     ])
@@ -110,27 +156,59 @@ export async function GET() {
 
     // Get recent activity (last 7 days)
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-    const recentActivity = await prisma.task.groupBy({
-      by: ['createdAt'],
+    
+    // Fixed: Group by date part only, not full timestamp
+    const recentActivity = await prisma.task.findMany({
       where: {
         userId: session.user.id,
         createdAt: { gte: sevenDaysAgo }
       },
-      _count: true,
+      select: {
+        createdAt: true
+      },
       orderBy: { createdAt: 'asc' }
     })
 
+    // Process recent activity to group by date
+    const activityByDate = recentActivity.reduce((acc, task) => {
+      const date = task.createdAt.toISOString().split('T')[0]
+      acc[date] = (acc[date] || 0) + 1
+      return acc
+    }, {})
+
     // Get productivity trend (tasks completed per day for last 7 days)
-    const productivityTrend = await prisma.task.groupBy({
-      by: ['completedAt'],
+    const completedTasksLastWeek = await prisma.task.findMany({
       where: {
         userId: session.user.id,
         status: 'COMPLETED',
-        completedAt: { gte: sevenDaysAgo }
+        completedAt: { 
+          gte: sevenDaysAgo,
+          not: null
+        }
       },
-      _count: true,
+      select: {
+        completedAt: true
+      },
       orderBy: { completedAt: 'asc' }
     })
+
+    // Process productivity trend to group by date
+    const productivityByDate = completedTasksLastWeek.reduce((acc, task) => {
+      const date = task.completedAt.toISOString().split('T')[0]
+      acc[date] = (acc[date] || 0) + 1
+      return acc
+    }, {})
+
+    // Convert to array format for charts
+    const recentActivityArray = Object.entries(activityByDate).map(([date, count]) => ({
+      date,
+      count
+    }))
+
+    const productivityTrendArray = Object.entries(productivityByDate).map(([date, count]) => ({
+      date,
+      count
+    }))
 
     return NextResponse.json({
       overview: {
@@ -145,8 +223,8 @@ export async function GET() {
       },
       priorities: priorityBreakdown,
       activity: {
-        recent: recentActivity,
-        productivity: productivityTrend
+        recent: recentActivityArray,
+        productivity: productivityTrendArray
       }
     })
 

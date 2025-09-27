@@ -121,6 +121,10 @@
   }
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 @layer utilities {
   .animate-fade-in {
     animation: fadeIn 0.8s ease-in-out;
@@ -170,3 +174,4 @@
     }
   }
 }
+

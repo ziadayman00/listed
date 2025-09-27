@@ -24,7 +24,18 @@ export async function GET(request) {
       }
     })
 
-    return NextResponse.json(deletedTasks)
+    // Flatten the response to make it easier to use in the frontend
+    const formattedDeletedTasks = deletedTasks.map(deletedTask => ({
+      id: deletedTask.id,
+      title: deletedTask.title || deletedTask.originalTask?.title || 'Untitled Task',
+      description: deletedTask.description || deletedTask.originalTask?.description || '',
+      deletedAt: deletedTask.deletedAt,
+      originalTaskId: deletedTask.originalTaskId,
+      // Include any other fields you need
+      ...deletedTask.originalTask // Spread original task data if needed
+    }))
+
+    return NextResponse.json(formattedDeletedTasks)
 
   } catch (error) {
     console.error('Deleted Tasks GET API Error:', error)

@@ -23,6 +23,7 @@ import {
   Target
 } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import AddTaskModal from './AddTaskModal'
 
 // Helper functions
 const getStatusIcon = (status) => {
@@ -569,11 +570,24 @@ export default function TasksOverview({ preview = false, tasksRefreshKey = 0, on
     setSelectedTask(null)
   }
 
+  const [showAddTask, setShowAddTask] = useState(false)
+  const handleTaskCreate = (task) => {
+    setShowAddTask(false)
+    fetchTasks()
+  }
+
   // Get unique categories for filter
   const uniqueCategories = [...new Set(tasks.map(task => task.category).filter(Boolean))]
 
   return (
     <>
+      {showAddTask && (
+        <AddTaskModal
+          isOpen={showAddTask}
+          onClose={() => setShowAddTask(false)}
+          onTaskCreate={handleTaskCreate}
+        />
+      )}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
         {/* Header */}
         <div className="p-4 sm:p-6 border-b border-gray-100">

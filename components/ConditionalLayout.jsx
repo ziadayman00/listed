@@ -9,9 +9,10 @@ const ConditionalLayout = ({ children }) => {
   
   // Check if we're on an admin route
   const isAdminRoute = pathname?.startsWith('/admin')
+  const isDashboardRoute = pathname?.startsWith('/dashboard')
   
   // If it's an admin route, just render children without navbar/footer
-  if (isAdminRoute) {
+  if (isAdminRoute || isDashboardRoute) {
     return <>{children}</>
   }
   

@@ -26,7 +26,7 @@ const About = () => {
   ]
 
   return (
-    <section className="bg-white py-16 px-4 sm:px-6 lg:px-8">
+    <section id="about" className="about bg-white py-16 px-4 sm:px-6 lg:px-8">
       <div className="max-w-[1600px] mx-auto">
         {/* Main About Content */}
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center mb-20">

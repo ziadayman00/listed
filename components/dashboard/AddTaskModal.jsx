@@ -278,7 +278,7 @@ export default function AddTaskModal({
   ]
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/30 backdrop-blur-md backdrop-saturate-150 flex items-end sm:items-center justify-center z-50">
       <div
         className="bg-white w-full h-full sm:h-auto sm:max-h-[95vh] sm:rounded-2xl sm:max-w-lg sm:m-4 overflow-y-auto"
         onKeyDown={handleKeyDown}

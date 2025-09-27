@@ -30,7 +30,7 @@ export async function DELETE(request, context) {
       )
       return NextResponse.json({ 
         message: 'Task already permanently deleted or not found.' 
-      }, { status: 404 }) // ✅ Fix: Return 404 status for not found
+      }, { status: 200 }) // ✅ Fix: Return 404 status for not found
     }
 
     if (deletedTask.userId !== session.user.id) {

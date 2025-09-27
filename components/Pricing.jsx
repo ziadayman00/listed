@@ -61,7 +61,7 @@ const Pricing = () => {
   ]
 
   return (
-    <section className="bg-gray-50 py-16 px-4 sm:px-6 lg:px-8">
+    <section id="pricing" className="pricing bg-gray-50 py-16 px-4 sm:px-6 lg:px-8">
       <div className="max-w-[1600px] mx-auto">
         {/* Section Header */}
         <div className="text-center mb-16">

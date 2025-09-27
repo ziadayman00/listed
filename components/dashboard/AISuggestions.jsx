@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { 
   Brain, 
   Lightbulb, 
@@ -11,96 +11,120 @@ import {
   RefreshCw,
   Plus,
   Check,
-  X
+  X,
+  AlertCircle,
+  BarChart3
 } from 'lucide-react'
 
 export default function AISuggestions({ preview = false }) {
+  const [suggestions, setSuggestions] = useState([])
+  const [analytics, setAnalytics] = useState({})
+  const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [error, setError] = useState(null)
   const [acceptedSuggestions, setAcceptedSuggestions] = useState(new Set())
   const [rejectedSuggestions, setRejectedSuggestions] = useState(new Set())
+  const [isFallback, setIsFallback] = useState(false)
 
-  // Sample AI suggestions data
-  const suggestions = [
-    {
-      id: 1,
-      type: 'task_creation',
-      title: 'Schedule follow-up meeting',
-      description: 'Based on your completed project proposal, I suggest scheduling a follow-up meeting to discuss next steps.',
-      confidence: 85,
-      reasoning: 'You completed "Complete project proposal" yesterday. Teams typically schedule follow-ups within 2-3 days.',
-      category: 'Work',
-      priority: 'medium',
-      estimatedTime: '30 min',
-      suggestedDate: '2024-01-17'
-    },
-    {
-      id: 2,
-      type: 'optimization',
-      title: 'Batch similar tasks',
-      description: 'Group your documentation tasks together to improve focus and reduce context switching.',
-      confidence: 92,
-      reasoning: 'You have 3 documentation-related tasks. Research shows 23% productivity gain from task batching.',
-      category: 'Productivity',
-      priority: 'low',
-      estimatedTime: '5 min setup',
-      impact: 'High'
-    },
-    {
-      id: 3,
-      type: 'deadline_optimization',
-      title: 'Reschedule presentation prep',
-      description: 'Move presentation preparation earlier to avoid conflicts with your high-priority tasks.',
-      confidence: 78,
-      reasoning: 'You have overlapping high-priority tasks on Jan 16. Moving this task prevents last-minute stress.',
-      category: 'Planning',
-      priority: 'high',
-      estimatedTime: '2 hours',
-      suggestedDate: '2024-01-15'
-    },
-    {
-      id: 4,
-      type: 'break_reminder',
-      title: 'Take a productivity break',
-      description: 'You\'ve been working on tasks for 2.5 hours. A 15-minute break can boost your focus.',
-      confidence: 95,
-      reasoning: 'Studies show productivity decreases after 90-120 minutes of focused work without breaks.',
-      category: 'Wellness',
-      priority: 'medium',
-      estimatedTime: '15 min',
-      impact: 'Medium'
-    },
-    {
-      id: 5,
-      type: 'skill_development',
-      title: 'Learn about project management',
-      description: 'Based on your tasks, learning project management skills could improve your efficiency by 30%.',
-      confidence: 73,
-      reasoning: 'You frequently create project-related tasks. PM skills align with your work patterns.',
-      category: 'Learning',
-      priority: 'low',
-      estimatedTime: '1 hour',
-      impact: 'High'
+  // Fetch suggestions from API
+  const fetchSuggestions = async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setIsRefreshing(true)
+      } else {
+        setIsLoading(true)
+      }
+      setError(null)
+
+      const response = await fetch('/api/ai/suggestions', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      
+      setSuggestions(data.suggestions || [])
+      setAnalytics(data.analytics || {})
+      setIsFallback(data.fallback || false)
+
+    } catch (err) {
+      console.error('Failed to fetch AI suggestions:', err)
+      setError('Failed to load AI suggestions. Please try again.')
+      setSuggestions([]) // Clear suggestions on error
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
     }
-  ]
-
-  const displaySuggestions = preview ? suggestions.slice(0, 2) : suggestions
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true)
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    setIsRefreshing(false)
   }
 
-  const handleAccept = (suggestionId) => {
-    setAcceptedSuggestions(prev => new Set([...prev, suggestionId]))
-    // Here you would implement the suggestion (create task, etc.)
+  // Handle suggestion actions (accept/reject)
+  const handleSuggestionAction = async (action, suggestion) => {
+    try {
+      const response = await fetch('/api/ai/suggestions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action,
+          suggestionId: suggestion.id,
+          suggestionData: suggestion
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const result = await response.json()
+      
+      if (action === 'accept') {
+        setAcceptedSuggestions(prev => new Set([...prev, suggestion.id]))
+        
+        // Show success message if a task was created
+        if (result.taskId) {
+          // You could show a toast notification here
+          console.log('Task created from suggestion:', result.taskId)
+        }
+      } else {
+        setRejectedSuggestions(prev => new Set([...prev, suggestion.id]))
+      }
+
+    } catch (err) {
+      console.error('Failed to process suggestion action:', err)
+      // You could show an error toast here
+    }
   }
 
-  const handleReject = (suggestionId) => {
-    setRejectedSuggestions(prev => new Set([...prev, suggestionId]))
-    // Here you would send feedback to improve AI suggestions
+  const handleAccept = (suggestion) => {
+    handleSuggestionAction('accept', suggestion)
   }
+
+  const handleReject = (suggestion) => {
+    handleSuggestionAction('reject', suggestion)
+  }
+
+  const handleRefresh = () => {
+    fetchSuggestions(true)
+  }
+
+  // Load suggestions on mount
+  useEffect(() => {
+    fetchSuggestions()
+  }, [])
+
+  // Filter out processed suggestions for display
+  const displaySuggestions = suggestions.filter(s => 
+    !acceptedSuggestions.has(s.id) && !rejectedSuggestions.has(s.id)
+  )
+
+  const previewSuggestions = preview ? displaySuggestions.slice(0, 2) : displaySuggestions
 
   const getTypeIcon = (type) => {
     switch (type) {
@@ -119,6 +143,23 @@ export default function AISuggestions({ preview = false }) {
     }
   }
 
+  const getTypeLabel = (type) => {
+    switch (type) {
+      case 'task_creation':
+        return 'New Task'
+      case 'optimization':
+        return 'Optimization'
+      case 'deadline_optimization':
+        return 'Schedule'
+      case 'break_reminder':
+        return 'Wellness'
+      case 'skill_development':
+        return 'Learning'
+      default:
+        return 'Suggestion'
+    }
+  }
+
   const getConfidenceColor = (confidence) => {
     if (confidence >= 90) return 'text-green-600 bg-green-100'
     if (confidence >= 75) return 'text-blue-600 bg-blue-100'
@@ -127,13 +168,26 @@ export default function AISuggestions({ preview = false }) {
   }
 
   const getPriorityColor = (priority) => {
-    switch (priority) {
+    switch (priority?.toLowerCase()) {
       case 'high':
         return 'text-red-600 bg-red-100'
       case 'medium':
         return 'text-yellow-600 bg-yellow-100'
       case 'low':
         return 'text-green-600 bg-green-100'
+      default:
+        return 'text-gray-600 bg-gray-100'
+    }
+  }
+
+  const getImpactColor = (impact) => {
+    switch (impact?.toLowerCase()) {
+      case 'high':
+        return 'text-purple-600 bg-purple-100'
+      case 'medium':
+        return 'text-blue-600 bg-blue-100'
+      case 'low':
+        return 'text-gray-600 bg-gray-100'
       default:
         return 'text-gray-600 bg-gray-100'
     }
@@ -155,57 +209,125 @@ export default function AISuggestions({ preview = false }) {
               <p className="text-sm text-gray-600 mt-1">
                 {preview ? 'Smart recommendations for you' : 'Personalized recommendations to boost your productivity'}
               </p>
+              {isFallback && (
+                <p className="text-xs text-amber-600 mt-1 flex items-center">
+                  <AlertCircle className="w-3 h-3 mr-1" />
+                  Using fallback suggestions
+                </p>
+              )}
             </div>
           </div>
           {!preview && (
-            <button
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="flex items-center px-4 py-2 text-[#784e87] border border-[#784e87]/20 rounded-lg hover:bg-[#784e87]/5 transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-              {isRefreshing ? 'Refreshing...' : 'Refresh'}
-            </button>
+            <div className="flex items-center space-x-3">
+              {/* Analytics Summary */}
+              {Object.keys(analytics).length > 0 && (
+                <div className="text-right">
+                  <div className="text-xs text-gray-500">
+                    {analytics.completionRate?.toFixed(0)}% completion rate
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {analytics.totalTasks} tasks this week
+                  </div>
+                </div>
+              )}
+              <button
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className="flex items-center px-4 py-2 text-[#784e87] border border-[#784e87]/20 rounded-lg hover:bg-[#784e87]/5 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                {isRefreshing ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Suggestions List */}
-      <div className="divide-y divide-gray-100">
-        {displaySuggestions.length === 0 ? (
-          <div className="p-8 text-center">
-            <div className="w-16 h-16 bg-[#784e87]/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Brain className="w-8 h-8 text-[#784e87]" />
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No suggestions yet</h3>
-            <p className="text-gray-600 mb-4">
-              Complete a few tasks and I'll start providing personalized suggestions to help you stay productive.
-            </p>
-            <button
-              onClick={handleRefresh}
-              className="inline-flex items-center px-4 py-2 bg-[#784e87] text-white rounded-lg hover:bg-[#6b4476] transition-colors"
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Check for Suggestions
-            </button>
-          </div>
-        ) : (
-          displaySuggestions.map((suggestion) => (
-            <SuggestionItem
-              key={suggestion.id}
-              suggestion={suggestion}
-              onAccept={handleAccept}
-              onReject={handleReject}
-              isAccepted={acceptedSuggestions.has(suggestion.id)}
-              isRejected={rejectedSuggestions.has(suggestion.id)}
-              getTypeIcon={getTypeIcon}
-              getConfidenceColor={getConfidenceColor}
-              getPriorityColor={getPriorityColor}
-            />
-          ))
-        )}
-      </div>
+      {/* Loading State */}
+      {isLoading && (
+        <div className="p-8 text-center">
+          <div className="animate-spin w-8 h-8 border-2 border-[#784e87] border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-gray-600">Analyzing your productivity patterns...</p>
+        </div>
+      )}
 
+      {/* Error State */}
+      {error && !isLoading && (
+        <div className="p-8 text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-8 h-8 text-red-500" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Unable to load suggestions</h3>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={() => fetchSuggestions()}
+            className="inline-flex items-center px-4 py-2 bg-[#784e87] text-white rounded-lg hover:bg-[#6b4476] transition-colors"
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Try Again
+          </button>
+        </div>
+      )}
+
+      {/* Suggestions List */}
+      {!isLoading && !error && (
+        <div className="divide-y divide-gray-100">
+          {previewSuggestions.length === 0 ? (
+            <div className="p-8 text-center">
+              <div className="w-16 h-16 bg-[#784e87]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Brain className="w-8 h-8 text-[#784e87]" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No suggestions available</h3>
+              <p className="text-gray-600 mb-4">
+                Complete a few tasks and I'll start providing personalized suggestions to help you stay productive.
+              </p>
+              <button
+                onClick={handleRefresh}
+                className="inline-flex items-center px-4 py-2 bg-[#784e87] text-white rounded-lg hover:bg-[#6b4476] transition-colors"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Check for Suggestions
+              </button>
+            </div>
+          ) : (
+            previewSuggestions.map((suggestion) => (
+              <SuggestionItem
+                key={suggestion.id}
+                suggestion={suggestion}
+                onAccept={() => handleAccept(suggestion)}
+                onReject={() => handleReject(suggestion)}
+                getTypeIcon={getTypeIcon}
+                getTypeLabel={getTypeLabel}
+                getConfidenceColor={getConfidenceColor}
+                getPriorityColor={getPriorityColor}
+                getImpactColor={getImpactColor}
+              />
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Show processed suggestions summary */}
+      {(acceptedSuggestions.size > 0 || rejectedSuggestions.size > 0) && !preview && (
+        <div className="p-4 bg-gray-50 border-t border-gray-100">
+          <div className="flex items-center justify-center space-x-6 text-sm">
+            {acceptedSuggestions.size > 0 && (
+              <div className="flex items-center text-green-600">
+                <Check className="w-4 h-4 mr-1" />
+                {acceptedSuggestions.size} accepted
+              </div>
+            )}
+            {rejectedSuggestions.size > 0 && (
+              <div className="flex items-center text-gray-600">
+                <X className="w-4 h-4 mr-1" />
+                {rejectedSuggestions.size} dismissed
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Preview footer */}
       {preview && suggestions.length > 2 && (
         <div className="p-4 border-t border-gray-100 text-center">
           <button className="text-[#784e87] hover:text-[#6b4476] font-medium">
@@ -215,14 +337,14 @@ export default function AISuggestions({ preview = false }) {
       )}
 
       {/* AI Insights Footer */}
-      {!preview && (
+      {!preview && !isLoading && (
         <div className="p-6 bg-gradient-to-r from-[#784e87]/5 to-[#b8a9c0]/5 border-t border-gray-100">
           <div className="flex items-start space-x-3">
             <Sparkles className="w-5 h-5 text-[#784e87] mt-0.5" />
             <div>
               <h4 className="text-sm font-medium text-gray-900 mb-1">AI Learning</h4>
               <p className="text-xs text-gray-600">
-                These suggestions improve as you use Listed. Accept or reject suggestions to help me learn your preferences.
+                These suggestions improve as you use Listed. Accept or reject suggestions to help me learn your preferences and provide better recommendations.
               </p>
             </div>
           </div>
@@ -236,36 +358,32 @@ export default function AISuggestions({ preview = false }) {
 function SuggestionItem({ 
   suggestion, 
   onAccept, 
-  onReject, 
-  isAccepted, 
-  isRejected,
+  onReject,
   getTypeIcon,
+  getTypeLabel,
   getConfidenceColor,
-  getPriorityColor
+  getPriorityColor,
+  getImpactColor
 }) {
   const [showDetails, setShowDetails] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
 
-  if (isAccepted || isRejected) {
-    return (
-      <div className="p-6 bg-gray-50 opacity-75">
-        <div className="flex items-center space-x-3">
-          {getTypeIcon(suggestion.type)}
-          <div className="flex-1">
-            <h3 className="text-sm font-medium text-gray-600 line-through">
-              {suggestion.title}
-            </h3>
-            <p className="text-xs text-gray-500 mt-1">
-              {isAccepted ? 'Suggestion accepted' : 'Suggestion dismissed'}
-            </p>
-          </div>
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-            isAccepted ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
-          }`}>
-            {isAccepted ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-          </div>
-        </div>
-      </div>
-    )
+  const handleAccept = async () => {
+    setIsProcessing(true)
+    try {
+      await onAccept()
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleReject = async () => {
+    setIsProcessing(true)
+    try {
+      await onReject()
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   return (
@@ -279,20 +397,34 @@ function SuggestionItem({
         {/* Suggestion Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-900">
-              {suggestion.title}
-            </h3>
+            <div>
+              <h3 className="text-sm font-medium text-gray-900 mb-1">
+                {suggestion.title}
+              </h3>
+              <div className="flex items-center space-x-2">
+                <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full">
+                  {getTypeLabel(suggestion.type)}
+                </span>
+                {suggestion.category && (
+                  <span className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded-full">
+                    {suggestion.category}
+                  </span>
+                )}
+              </div>
+            </div>
             <div className="flex space-x-2 ml-4">
               <button
-                onClick={() => onReject(suggestion.id)}
-                className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                onClick={handleReject}
+                disabled={isProcessing}
+                className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
                 title="Dismiss suggestion"
               >
                 <X className="w-4 h-4" />
               </button>
               <button
-                onClick={() => onAccept(suggestion.id)}
-                className="p-1 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded transition-colors"
+                onClick={handleAccept}
+                disabled={isProcessing}
+                className="p-1 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
                 title="Accept suggestion"
               >
                 <Check className="w-4 h-4" />
@@ -305,51 +437,65 @@ function SuggestionItem({
           </p>
 
           {/* Suggestion Meta */}
-          <div className="flex items-center space-x-3 mb-3">
+          <div className="flex items-center flex-wrap gap-2 mb-3">
             {/* Confidence */}
             <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getConfidenceColor(suggestion.confidence)}`}>
               {suggestion.confidence}% confident
             </span>
 
             {/* Priority */}
-            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(suggestion.priority)}`}>
-              {suggestion.priority} priority
-            </span>
+            {suggestion.priority && (
+              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(suggestion.priority)}`}>
+                {suggestion.priority} priority
+              </span>
+            )}
 
-            {/* Time/Impact */}
+            {/* Impact */}
+            {suggestion.impact && (
+              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getImpactColor(suggestion.impact)}`}>
+                {suggestion.impact} impact
+              </span>
+            )}
+
+            {/* Estimated Time */}
             {suggestion.estimatedTime && (
               <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
                 {suggestion.estimatedTime}
               </span>
             )}
 
-            {suggestion.impact && (
+            {/* Suggested Date */}
+            {suggestion.suggestedDate && (
               <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                {suggestion.impact} impact
+                {new Date(suggestion.suggestedDate).toLocaleDateString()}
               </span>
             )}
           </div>
 
           {/* Show Details Toggle */}
-          <button
-            onClick={() => setShowDetails(!showDetails)}
-            className="text-xs text-[#784e87] hover:text-[#6b4476] font-medium"
-          >
-            {showDetails ? 'Hide details' : 'Why this suggestion?'}
-          </button>
+          {suggestion.reasoning && (
+            <>
+              <button
+                onClick={() => setShowDetails(!showDetails)}
+                className="text-xs text-[#784e87] hover:text-[#6b4476] font-medium"
+              >
+                {showDetails ? 'Hide details' : 'Why this suggestion?'}
+              </button>
 
-          {/* Details */}
-          {showDetails && (
-            <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-              <p className="text-xs text-gray-600">
-                <span className="font-medium">AI Reasoning:</span> {suggestion.reasoning}
-              </p>
-              {suggestion.suggestedDate && (
-                <p className="text-xs text-gray-600 mt-1">
-                  <span className="font-medium">Suggested date:</span> {suggestion.suggestedDate}
-                </p>
+              {/* Details */}
+              {showDetails && (
+                <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                  <p className="text-xs text-gray-600">
+                    <span className="font-medium">AI Reasoning:</span> {suggestion.reasoning}
+                  </p>
+                  {suggestion.createdAt && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      <span className="font-medium">Generated:</span> {new Date(suggestion.createdAt).toLocaleString()}
+                    </p>
+                  )}
+                </div>
               )}
-            </div>
+            </>
           )}
         </div>
       </div>

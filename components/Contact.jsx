@@ -110,7 +110,7 @@ const Contact = () => {
     {
       icon: Mail,
       title: "Email Us",
-      content: "hello@listed.app",
+      content: "zyadd.aymann@gmail.com",
       description: "Get in touch for general inquiries"
     },
     {
@@ -128,7 +128,7 @@ const Contact = () => {
   ]
 
   return (
-    <section className="bg-gray-50 py-16 px-4 sm:px-6 lg:px-8">
+    <section id="contact" className="contact bg-gray-50 py-16 px-4 sm:px-6 lg:px-8">
       <div className="max-w-[1600px] mx-auto">
         {/* Section Header */}
         <div className="text-center mb-16">

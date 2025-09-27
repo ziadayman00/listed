@@ -31,6 +31,12 @@ enum AIActionType {
   TASK_SCHEDULED
   TASK_ANALYZED
   TASK_SUGGESTED
+  // Add these new ones:
+  GEMINI_CHAT_STARTED
+  GEMINI_VOICE_CALL
+  GEMINI_MEMORY_CREATED
+  GEMINI_MEMORY_RETRIEVED
+  GEMINI_MULTIMODAL_INTERACTION
 }
 
 enum TicketStatus {
@@ -102,6 +108,8 @@ model User {
   email         String    @unique
   emailVerified DateTime?
   image         String?
+  geminiConversations GeminiConversation[]
+  geminiMemories      GeminiMemory[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -404,6 +412,105 @@ model ReminderQueue {
   @@map("reminder_queue")
 }
 
+// New model for Gemini conversations with voice support
+model GeminiConversation {
+  id              String           @id @default(cuid())
+  sessionId       String           @unique
+  type            ConversationType @default(TEXT)
+  model           String           @default("gemini-2.5-pro") // or gemini-2.5-flash for faster responses
+  
+  // Voice-specific fields
+  voiceEnabled    Boolean          @default(false)
+  selectedVoice   String?          // Store the selected voice ID
+  audioLanguage   String?          // Language for audio output
+  
+  // Context and memory
+  systemPrompt    String?          @db.Text
+  contextTokens   Int              @default(0)
+  maxTokens       Int              @default(1000000) // Gemini 2.5 supports up to 1M tokens
+  
+  // Timestamps
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  lastActiveAt    DateTime         @default(now())
+
+  // Relations
+  userId          String
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages        GeminiMessage[]
+  memories        GeminiMemory[]
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([lastActiveAt])
+  @@map("gemini_conversations")
+}
+
+// Model for individual messages in conversations
+model GeminiMessage {
+  id               String    @id @default(cuid())
+  role             String    // "user", "model", "system"
+  content          String    @db.Text
+  
+  // Audio/Voice specific fields
+  hasAudio         Boolean   @default(false)
+  audioUrl         String?   // Store audio file URL if applicable
+  audioDuration    Int?      // Duration in seconds
+  transcription    String?   @db.Text // For voice messages
+  
+  // Multimodal content
+  attachments      Json?     // Store file references, images, etc.
+  
+  // AI response metadata
+  finishReason     String?
+  safetyRatings    Json?
+  tokenCount       Int?
+  
+  // Timestamps
+  createdAt        DateTime  @default(now())
+
+  // Relations
+  conversationId   String
+  conversation     GeminiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@map("gemini_messages")
+}
+
+// Model for Gemini's memory system
+model GeminiMemory {
+  id              String     @id @default(cuid())
+  type            MemoryType @default(CONVERSATION)
+  key             String     // Memory identifier/key
+  value           String     @db.Text
+  context         String?    @db.Text // Additional context
+  importance      Float      @default(0.5) // 0-1 importance score
+  
+  // Expiry and lifecycle
+  expiresAt       DateTime?
+  isActive        Boolean    @default(true)
+  accessCount     Int        @default(0)
+  lastAccessedAt  DateTime   @default(now())
+  
+  // Timestamps
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  // Relations
+  userId          String
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId  String?
+  conversation    GeminiConversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId, type])
+  @@index([key])
+  @@index([isActive])
+  @@index([expiresAt])
+  @@map("gemini_memories")
+}
+
 enum ReminderType {
   DUE_DATE
   OVERDUE
@@ -415,4 +522,26 @@ enum ReminderStatus {
   SENT
   FAILED
   CANCELLED
+}
+
+// Add new enum for AI providers
+enum AIProvider {
+  GEMINI
+  OPENAI
+  ANTHROPIC
+}
+
+// Add new enum for conversation types
+enum ConversationType {
+  TEXT
+  VOICE
+  MULTIMODAL
+}
+
+// Add new enum for memory types
+enum MemoryType {
+  CONVERSATION
+  USER_PREFERENCE
+  TASK_CONTEXT
+  SYSTEM
 }

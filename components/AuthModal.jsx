@@ -51,7 +51,7 @@ export default function AuthModal({ isOpen, onClose }) {
   const handleSignIn = async (providerId) => {
     setIsLoading(true)
     try {
-      await signIn(providerId, { callbackUrl: '/' })
+      await signIn(providerId, { callbackUrl: '/dashboard' })
     } catch (error) {
       console.error('Sign in error:', error)
       setIsLoading(false)

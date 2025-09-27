@@ -7,10 +7,11 @@ export default function DeletedTasksOverview({ onTaskRestoredOrPermanentlyDelete
   const [deletedTasks, setDeletedTasks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [deletingTaskId, setDeletingTaskId] = useState(null); // Add this line
 
   useEffect(() => {
     fetchDeletedTasks();
-  }, [onTaskRestoredOrPermanentlyDeleted]); // Re-fetch when parent signals a change
+  }, [onTaskRestoredOrPermanentlyDeleted]);
 
   const fetchDeletedTasks = async () => {
     setIsLoading(true);
@@ -22,7 +23,7 @@ export default function DeletedTasksOverview({ onTaskRestoredOrPermanentlyDelete
       }
       const data = await response.json();
       setDeletedTasks(data);
-      console.log('Fetched deleted tasks:', data); // Add this line
+      console.log('Fetched deleted tasks:', data);
     } catch (err) {
       console.error('Error fetching deleted tasks:', err);
       setError(err.message);
@@ -38,14 +39,13 @@ export default function DeletedTasksOverview({ onTaskRestoredOrPermanentlyDelete
       });
 
       if (!response.ok) {
-        const text = await response.text(); // Fallback if response is HTML
+        const text = await response.text();
         throw new Error(`Failed to restore task: ${text}`);
       }
 
       const data = await response.json();
 
       console.log('Task restored successfully', data);
-      // Trigger a refresh in the parent component and this component
       onTaskRestoredOrPermanentlyDeleted(prev => prev + 1);
     } catch (err) {
       console.error('Error restoring task:', err);
@@ -53,26 +53,47 @@ export default function DeletedTasksOverview({ onTaskRestoredOrPermanentlyDelete
     }
   };
 
+  // REPLACE the existing handlePermanentDelete function with this updated version:
   const handlePermanentDelete = async (deletedTaskId) => {
+    if (deletingTaskId === deletedTaskId) return; // Prevent double-click
+    
     if (!window.confirm('Are you sure you want to permanently delete this task? This action cannot be undone.')) {
       return;
     }
+    
+    setDeletingTaskId(deletedTaskId);
+    
+    // Optimistically remove from local state
+    setDeletedTasks(prev => prev.filter(task => task.id !== deletedTaskId));
+    
     try {
       const response = await fetch(`/api/deleted-tasks/${deletedTaskId}`, {
         method: 'DELETE',
       });
 
+      if (response.status === 404) {
+        // Task already deleted, just refresh the list
+        console.log('Task was already permanently deleted');
+        onTaskRestoredOrPermanentlyDeleted(prev => prev + 1);
+        return;
+      }
+
       if (!response.ok) {
+        // If it failed, restore the task to local state
+        await fetchDeletedTasks();
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to permanently delete task');
       }
 
       console.log('Task permanently deleted successfully');
-      // Trigger a refresh in the parent component and this component
       onTaskRestoredOrPermanentlyDeleted(prev => prev + 1);
     } catch (err) {
+      // Refresh the list to show current state
+      await fetchDeletedTasks();
       console.error('Error permanently deleting task:', err);
       setError(err.message);
+    } finally {
+      setDeletingTaskId(null);
     }
   };
 
@@ -104,8 +125,14 @@ export default function DeletedTasksOverview({ onTaskRestoredOrPermanentlyDelete
         deletedTasks.map((task) => (
           <div key={task.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
             <div>
-              <p className="font-semibold text-gray-900">{task.title}</p>
-              {task.description && <p className="text-sm text-gray-600 mt-1">{task.description}</p>}
+              <p className="font-semibold text-gray-900">
+                {task.title || task.originalTask?.title || 'Untitled Task'}
+              </p>
+              {(task.description || task.originalTask?.description) && (
+                <p className="text-sm text-gray-600 mt-1">
+                  {task.description || task.originalTask?.description}
+                </p>
+              )}
               <p className="text-xs text-gray-500 mt-1">
                 Deleted: {format(parseISO(task.deletedAt), 'MMM d, yyyy HH:mm')}
               </p>
@@ -123,8 +150,10 @@ export default function DeletedTasksOverview({ onTaskRestoredOrPermanentlyDelete
                 variant="destructive"
                 size="sm"
                 onClick={() => handlePermanentDelete(task.id)}
+                disabled={deletingTaskId === task.id} // Add this line to disable button while deleting
               >
-                <Trash2 className="h-4 w-4 mr-1" /> Delete Forever
+                <Trash2 className="h-4 w-4 mr-1" /> 
+                {deletingTaskId === task.id ? 'Deleting...' : 'Delete Forever'}
               </Button>
             </div>
           </div>
