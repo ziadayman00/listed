@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Bot, User, Sparkles, CheckCircle, Plus, X, Calendar, Clock, Tag, Zap, Loader2, Mic, MicOff, Volume2, VolumeX, Brain, Image, Paperclip } from 'lucide-react'
+import { Send, Bot, User, Sparkles, CheckCircle, Plus, X, Calendar, Clock, Tag, Zap, Loader2, Mic, MicOff, Volume2, VolumeX, Brain, Image, Paperclip, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export default function AIChat({ onTaskCreate }) {
@@ -24,6 +24,7 @@ export default function AIChat({ onTaskCreate }) {
   const [isRecording, setIsRecording] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [selectedVoice, setSelectedVoice] = useState('en-US-Studio-O')
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false)
   
   // Session and memory states
   const [sessionId, setSessionId] = useState(null)
@@ -394,31 +395,31 @@ export default function AIChat({ onTaskCreate }) {
   ]
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 h-full flex flex-col max-h-[600px]">
-      {/* Enhanced Header with Voice Controls */}
-      <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-[#784e87]/5 to-purple-600/5">
+    <div className="bg-white rounded-none sm:rounded-2xl shadow-sm border-0 sm:border border-gray-100 h-full flex flex-col max-h-screen sm:max-h-[600px]">
+      {/* Mobile-First Header */}
+      <div className="p-3 sm:p-4 border-b border-gray-100 bg-gradient-to-r from-[#784e87]/5 to-purple-600/5">
         <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center space-x-3">
-            <div className="h-10 w-10 bg-gradient-to-br from-[#784e87] to-purple-600 rounded-xl flex items-center justify-center shadow-sm">
-              <Sparkles className="h-5 w-5 text-white" />
+          <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
+            <div className="h-8 w-8 sm:h-10 sm:w-10 bg-gradient-to-br from-[#784e87] to-purple-600 rounded-lg sm:rounded-xl flex items-center justify-center shadow-sm flex-shrink-0">
+              <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
             </div>
-            <div className="flex-1">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                AI Task Assistant
-                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 flex items-center gap-1 sm:gap-2">
+                <span className="truncate">AI Task Assistant</span>
+                <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full flex-shrink-0">
                   Gemini 2.5
                 </span>
               </h2>
-              <p className="text-sm text-gray-500">Voice chat • Memory • Multimodal</p>
+              <p className="text-xs sm:text-sm text-gray-500 hidden sm:block">Voice chat • Memory • Multimodal</p>
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             {/* Memory indicator */}
             {(memoriesUsed > 0 || memoriesCreated > 0) && (
-              <div className="flex items-center gap-1 text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
+              <div className="flex items-center gap-1 text-xs text-purple-600 bg-purple-50 px-1.5 sm:px-2 py-1 rounded-full">
                 <Brain className="w-3 h-3" />
-                {memoriesUsed + memoriesCreated}
+                <span className="hidden sm:inline">{memoriesUsed + memoriesCreated}</span>
               </div>
             )}
             
@@ -427,66 +428,80 @@ export default function AIChat({ onTaskCreate }) {
               onClick={() => setIsVoiceMode(!isVoiceMode)}
               variant="outline"
               size="sm"
-              className={`${isVoiceMode ? 'bg-green-50 border-green-200 text-green-700' : ''}`}
+              className={`h-8 w-8 p-0 sm:h-auto sm:w-auto sm:px-2 ${isVoiceMode ? 'bg-green-50 border-green-200 text-green-700' : ''}`}
             >
               {isVoiceMode ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
             </Button>
             
             {suggestedTasks.length > 0 && (
               <div className="bg-[#784e87] text-white text-xs px-2 py-1 rounded-full">
-                {suggestedTasks.length} pending
+                {suggestedTasks.length}
               </div>
             )}
           </div>
         </div>
         
-        {/* Voice settings */}
+        {/* Voice settings - Mobile optimized */}
         {isVoiceMode && (
-          <div className="flex items-center gap-2 text-xs">
-            <select
-              value={selectedVoice}
-              onChange={(e) => setSelectedVoice(e.target.value)}
-              className="text-xs border border-gray-200 rounded px-2 py-1"
+          <div className="space-y-2">
+            <Button
+              onClick={() => setShowVoiceSettings(!showVoiceSettings)}
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto text-xs"
             >
-              {availableVoices.map(voice => (
-                <option key={voice.id} value={voice.id}>
-                  {voice.name} ({voice.language})
-                </option>
-              ))}
-            </select>
-            {isPlaying && (
-              <Button onClick={stopSpeaking} size="sm" variant="outline">
-                <VolumeX className="w-3 h-3 mr-1" />
-                Stop
-              </Button>
+              Voice Settings
+              <ChevronDown className={`w-3 h-3 ml-1 transition-transform ${showVoiceSettings ? 'rotate-180' : ''}`} />
+            </Button>
+            
+            {showVoiceSettings && (
+              <div className="space-y-2">
+                <select
+                  value={selectedVoice}
+                  onChange={(e) => setSelectedVoice(e.target.value)}
+                  className="w-full text-xs border border-gray-200 rounded px-2 py-1"
+                >
+                  {availableVoices.map(voice => (
+                    <option key={voice.id} value={voice.id}>
+                      {voice.name} ({voice.language})
+                    </option>
+                  ))}
+                </select>
+                {isPlaying && (
+                  <Button onClick={stopSpeaking} size="sm" variant="outline" className="w-full">
+                    <VolumeX className="w-3 h-3 mr-1" />
+                    Stop Speaking
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         )}
       </div>
 
-      {/* Enhanced Messages */}
-      <div className="flex-1 p-4 overflow-y-auto space-y-4">
+      {/* Messages - Mobile optimized */}
+      <div className="flex-1 p-2 sm:p-4 overflow-y-auto space-y-3 sm:space-y-4">
         {messages.map((message) => (
           <div
             key={message.id}
-            className={`flex items-start space-x-3 ${
+            className={`flex items-start space-x-2 sm:space-x-3 ${
               message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''
             }`}
           >
-            <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center shadow-sm ${
+            <div className={`flex-shrink-0 h-7 w-7 sm:h-8 sm:w-8 rounded-full flex items-center justify-center shadow-sm ${
               message.type === 'ai' 
                 ? 'bg-gradient-to-br from-[#784e87] to-purple-600' 
                 : 'bg-gradient-to-br from-blue-500 to-blue-600'
             }`}>
               {message.type === 'ai' ? (
-                message.hasMemory ? <Brain className="h-4 w-4 text-white" /> : <Bot className="h-4 w-4 text-white" />
+                message.hasMemory ? <Brain className="h-3 w-3 sm:h-4 sm:w-4 text-white" /> : <Bot className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
               ) : (
-                <User className="h-4 w-4 text-white" />
+                <User className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
               )}
             </div>
             
-            <div className={`flex-1 ${message.type === 'user' ? 'text-right' : ''}`}>
-              <div className={`inline-block p-3 rounded-2xl max-w-[85%] shadow-sm ${
+            <div className={`flex-1 min-w-0 ${message.type === 'user' ? 'text-right' : ''}`}>
+              <div className={`inline-block p-2.5 sm:p-3 rounded-2xl max-w-[90%] sm:max-w-[85%] shadow-sm break-words ${
                 message.type === 'ai'
                   ? message.isError 
                     ? 'bg-red-50 text-red-800 border border-red-200'
@@ -501,20 +516,25 @@ export default function AIChat({ onTaskCreate }) {
                 {message.type === 'user' && (message.hasAudio || message.hasFiles) && (
                   <div className="mt-2 text-xs opacity-75">
                     {message.hasAudio && '🎤 Voice'}
-                    {message.hasFiles && ` 📎 ${message.fileNames?.join(', ')}`}
+                    {message.hasFiles && (
+                      <div className="truncate">
+                        📎 {message.fileNames?.slice(0, 2).join(', ')}
+                        {message.fileNames?.length > 2 && ` +${message.fileNames.length - 2} more`}
+                      </div>
+                    )}
                   </div>
                 )}
                 
                 {message.type === 'ai' && message.hasMemory && (
                   <div className="mt-2 text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded">
-                    🧠 Used {message.memoriesUsed} memories • Created {message.memoriesCreated} new
+                    🧠 Used {message.memoriesUsed} • Created {message.memoriesCreated}
                   </div>
                 )}
               </div>
               
-              {/* Task suggestions */}
+              {/* Task suggestions - Mobile optimized */}
               {message.tasks && (
-                <div className="mt-3 space-y-2">
+                <div className="mt-2 sm:mt-3 space-y-2">
                   {message.tasks.map((task, index) => {
                     const taskId = `${task.title}-${Date.now()}`
                     const isCreating = Array.from(creatingTasks).some(id => id.includes(task.title))
@@ -522,32 +542,32 @@ export default function AIChat({ onTaskCreate }) {
                     return (
                       <div
                         key={index}
-                        className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow"
+                        className="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm hover:shadow-md transition-shadow"
                       >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-gray-900 text-sm mb-1 truncate">
+                        <div className="flex items-start justify-between mb-2 sm:mb-3">
+                          <div className="flex-1 min-w-0 pr-2">
+                            <h4 className="font-semibold text-gray-900 text-sm mb-1 line-clamp-1">
                               {task.title}
                             </h4>
                             <p className="text-xs text-gray-600 line-clamp-2 mb-2">
                               {task.description}
                             </p>
                           </div>
-                          <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                             <span className="text-sm">
                               {getPriorityIcon(task.priority)}
                             </span>
-                            <span className={`text-xs px-2 py-1 rounded-full border font-medium ${getPriorityColor(task.priority)}`}>
+                            <span className={`text-xs px-1.5 sm:px-2 py-1 rounded-full border font-medium ${getPriorityColor(task.priority)}`}>
                               {task.priority}
                             </span>
                           </div>
                         </div>
                         
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 text-xs text-gray-500">
+                          <div className="flex items-center gap-2 sm:gap-3 text-xs text-gray-500">
                             <span className="inline-flex items-center gap-1">
                               <Tag className="w-3 h-3" />
-                              {task.category}
+                              <span className="truncate max-w-16 sm:max-w-none">{task.category}</span>
                             </span>
                             {task.estimatedTime && (
                               <span className="inline-flex items-center gap-1">
@@ -559,17 +579,17 @@ export default function AIChat({ onTaskCreate }) {
                           <Button
                             onClick={() => handleCreateTask(task)}
                             disabled={isCreating}
-                            className="bg-[#784e87] hover:bg-[#6b4476] disabled:bg-gray-300 text-white px-3 py-1 text-xs h-7 shadow-sm transition-colors"
+                            className="bg-[#784e87] hover:bg-[#6b4476] disabled:bg-gray-300 text-white px-2 sm:px-3 py-1 text-xs h-6 sm:h-7 shadow-sm transition-colors"
                           >
                             {isCreating ? (
                               <>
                                 <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                Adding...
+                                <span className="hidden sm:inline">Adding...</span>
                               </>
                             ) : (
                               <>
-                                <Plus className="h-3 w-3 mr-1" />
-                                Add Task
+                                <Plus className="h-3 w-3 sm:mr-1" />
+                                <span className="hidden sm:inline">Add Task</span>
                               </>
                             )}
                           </Button>
@@ -588,11 +608,11 @@ export default function AIChat({ onTaskCreate }) {
         ))}
 
         {isLoading && (
-          <div className="flex items-start space-x-3">
-            <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gradient-to-br from-[#784e87] to-purple-600 flex items-center justify-center shadow-sm">
-              <Bot className="h-4 w-4 text-white" />
+          <div className="flex items-start space-x-2 sm:space-x-3">
+            <div className="flex-shrink-0 h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-gradient-to-br from-[#784e87] to-purple-600 flex items-center justify-center shadow-sm">
+              <Bot className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
             </div>
-            <div className="bg-gray-50 border border-gray-100 rounded-2xl p-3 shadow-sm">
+            <div className="bg-gray-50 border border-gray-100 rounded-2xl p-2.5 sm:p-3 shadow-sm">
               <div className="flex space-x-1">
                 <div className="w-2 h-2 bg-[#784e87] rounded-full animate-bounce"></div>
                 <div className="w-2 h-2 bg-[#784e87] rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
@@ -605,21 +625,21 @@ export default function AIChat({ onTaskCreate }) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* File upload area */}
+      {/* File upload area - Mobile optimized */}
       {selectedFiles.length > 0 && (
-        <div className="px-4 py-2 border-t border-gray-100 bg-blue-50">
+        <div className="px-3 py-2 sm:px-4 border-t border-gray-100 bg-blue-50">
           <div className="flex items-center gap-2 text-sm text-blue-700 mb-2">
             <Paperclip className="w-4 h-4" />
             Selected files:
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1 sm:gap-2">
             {selectedFiles.map((file, index) => (
               <div key={index} className="flex items-center gap-1 bg-white px-2 py-1 rounded border text-xs">
                 {file.type.startsWith('image/') && '🖼️'}
                 {file.type.startsWith('audio/') && '🎵'}
                 {file.type.startsWith('video/') && '🎬'}
                 {!file.type.startsWith('image/') && !file.type.startsWith('audio/') && !file.type.startsWith('video/') && '📄'}
-                <span className="max-w-20 truncate">{file.name}</span>
+                <span className="max-w-12 sm:max-w-20 truncate">{file.name}</span>
                 <button onClick={() => removeFile(index)} className="text-red-500 hover:text-red-700">
                   <X className="w-3 h-3" />
                 </button>
@@ -629,71 +649,77 @@ export default function AIChat({ onTaskCreate }) {
         </div>
       )}
 
-      {/* Enhanced Input with Voice & File Support */}
+      {/* Mobile-First Input Area */}
       <div 
-        className={`p-4 border-t border-gray-100 bg-gray-50/30 ${isDragOver ? 'bg-blue-50 border-blue-200' : ''}`}
+        className={`p-2 sm:p-4 border-t border-gray-100 bg-gray-50/30 ${isDragOver ? 'bg-blue-50 border-blue-200' : ''}`}
         onDrop={handleFileDrop}
         onDragOver={(e) => { e.preventDefault(); setIsDragOver(true) }}
         onDragLeave={() => setIsDragOver(false)}
       >
-        <div className="flex items-center space-x-2 mb-3">
-          <input
-            ref={inputRef}
-            type="text"
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder={isVoiceMode ? "Type or speak your message..." : "Tell me what you need to get done..."}
-            className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#784e87] focus:border-transparent text-sm shadow-sm transition-all"
-            disabled={isLoading}
-          />
+        {/* Input row */}
+        <div className="flex items-end space-x-1 sm:space-x-2 mb-2 sm:mb-3">
+          <div className="flex-1 min-w-0">
+                          <input
+              ref={inputRef}
+              type="text"
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder={isVoiceMode ? "Type or speak..." : "What needs to be done?"}
+              className="w-full px-3 py-2.5 sm:px-4 sm:py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#784e87] focus:border-transparent text-sm shadow-sm transition-all resize-none"
+              disabled={isLoading}
+            />
+          </div>
           
-          {/* File upload button */}
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            variant="outline"
-            className="p-3 rounded-xl"
-            disabled={isLoading}
-          >
-            <Paperclip className="h-4 w-4" />
-          </Button>
-          
-          {/* Voice recording button */}
-          {isVoiceMode && (
+          {/* Action buttons - Mobile optimized */}
+          <div className="flex items-end gap-1 flex-shrink-0">
+            {/* File upload button */}
             <Button
-              onClick={isRecording ? stopRecording : startRecording}
-              className={`p-3 rounded-xl ${isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}`}
+              onClick={() => fileInputRef.current?.click()}
+              variant="outline"
+              className="h-10 w-10 p-0 rounded-xl border-gray-200"
               disabled={isLoading}
             >
-              {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              <Paperclip className="h-4 w-4" />
             </Button>
-          )}
-          
-          {/* Send button */}
-          <Button
-            onClick={() => handleSendMessage()}
-            disabled={(!inputMessage.trim() && selectedFiles.length === 0) || isLoading}
-            className="bg-[#784e87] hover:bg-[#6b4476] disabled:bg-gray-300 text-white p-3 rounded-xl shadow-sm transition-colors"
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
+            
+            {/* Voice recording button */}
+            {isVoiceMode && (
+              <Button
+                onClick={isRecording ? stopRecording : startRecording}
+                className={`h-10 w-10 p-0 rounded-xl ${isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}`}
+                disabled={isLoading}
+              >
+                {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </Button>
             )}
-          </Button>
+            
+            {/* Send button */}
+            <Button
+              onClick={() => handleSendMessage()}
+              disabled={(!inputMessage.trim() && selectedFiles.length === 0) || isLoading}
+              className="bg-[#784e87] hover:bg-[#6b4476] disabled:bg-gray-300 text-white h-10 w-10 p-0 rounded-xl shadow-sm transition-colors"
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
         </div>
         
-        {/* Quick suggestions */}
-        <div className="flex flex-wrap gap-2">
+        {/* Quick suggestions - Mobile responsive */}
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
           {quickSuggestions.map((suggestion) => (
             <button
               key={suggestion.text}
               onClick={() => setInputMessage(suggestion.text)}
-              className="inline-flex items-center gap-1 text-xs px-3 py-2 bg-white border border-gray-200 hover:border-[#784e87] hover:bg-[#784e87]/5 text-gray-700 hover:text-[#784e87] rounded-lg transition-all shadow-sm"
+              className="inline-flex items-center gap-1 text-xs px-2.5 sm:px-3 py-1.5 sm:py-2 bg-white border border-gray-200 hover:border-[#784e87] hover:bg-[#784e87]/5 text-gray-700 hover:text-[#784e87] rounded-lg transition-all shadow-sm"
               disabled={isLoading}
             >
               {suggestion.icon}
-              {suggestion.text}
+              <span className="truncate max-w-20 sm:max-w-none">{suggestion.text}</span>
             </button>
           ))}
         </div>
