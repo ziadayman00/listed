@@ -450,7 +450,10 @@ export async function POST(request) {
     try {
       const session = await getServerSession(authOptions)
       if (session?.user?.id) {
-        const { message: errorMessage } = body || {}
+        // Get the message from the request body we parsed earlier
+        const requestBody = await request.json().catch(() => ({}))
+        const { message: errorMessage } = requestBody || {}
+        
         await prisma.aILog.create({
           data: {
             userId: session.user.id,
