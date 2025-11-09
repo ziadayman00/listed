@@ -12,12 +12,8 @@ export async function DELETE(request, context) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // ✅ Fix: Await params before accessing properties
     const params = await context.params
-    let { id } = params
-    
-    // ✅ لو الـ id في Prisma من نوع Int
-    // id = parseInt(id, 10)
+    const { id } = params
 
     // Find the deleted task
     const deletedTask = await prisma.deletedTask.findUnique({
@@ -25,55 +21,29 @@ export async function DELETE(request, context) {
     })
 
     if (!deletedTask) {
-      console.warn(
-        `Attempted to permanently delete DeletedTask with ID: ${id}, but not found.`
-      )
       return NextResponse.json({ 
-        message: 'Task already permanently deleted or not found.' 
-      }, { status: 200 }) // ✅ Fix: Return 404 status for not found
+        error: 'Task not found in trash' 
+      }, { status: 404 })
     }
 
     if (deletedTask.userId !== session.user.id) {
-      return NextResponse.json({ error: 'Unauthorized to delete this task' }, { status: 403 })
+      return NextResponse.json({ 
+        error: 'Unauthorized to delete this task' 
+      }, { status: 403 })
     }
 
-    // Try deleting the original task if it exists
-    if (deletedTask.originalTaskId) {
-      try {
-        await prisma.task.delete({
-          where: { id: deletedTask.originalTaskId }
-        })
-      } catch (prismaError) {
-        // ✅ Fix: Check if it's a "not found" error specifically
-        if (prismaError.code === 'P2025') {
-          console.warn(
-            `Original task with ID ${deletedTask.originalTaskId} not found during permanent deletion.`
-          )
-        } else {
-          console.error('Error deleting original task:', prismaError)
-          // Re-throw if it's not a "not found" error
-          throw prismaError
-        }
-      }
-    }
+    // ✅ FIX: Delete both Task and DeletedTask in correct order using transaction
+    await prisma.$transaction(async (tx) => {
+      // 1. First delete the original Task (this removes the relationship)
+      await tx.task.delete({
+        where: { id: deletedTask.originalTaskId }
+      })
 
-    // ✅ Fix: Add try-catch for the deletedTask deletion with specific error handling
-    try {
-      await prisma.deletedTask.delete({
+      // 2. Then delete the DeletedTask record
+      await tx.deletedTask.delete({
         where: { id }
       })
-    } catch (prismaError) {
-      if (prismaError.code === 'P2025') {
-        // Record was already deleted by another request
-        console.warn(`DeletedTask with ID ${id} was already deleted.`)
-        return NextResponse.json({ 
-          message: 'Task was already permanently deleted.' 
-        }, { status: 200 })
-      } else {
-        // Re-throw other errors
-        throw prismaError
-      }
-    }
+    })
 
     // Log activity
     try {
@@ -92,9 +62,24 @@ export async function DELETE(request, context) {
       console.error('Error logging permanent task deletion activity:', activityError)
     }
 
-    return NextResponse.json({ message: 'Task permanently deleted' })
+    return NextResponse.json({ 
+      message: 'Task permanently deleted successfully' 
+    })
+
   } catch (error) {
     console.error('Permanent Delete Task API Error:', error)
-    return NextResponse.json({ error: 'Failed to permanently delete task' }, { status: 500 })
+    
+    // More detailed error logging
+    if (error.code === 'P2003') {
+      return NextResponse.json({ 
+        error: 'Cannot delete: foreign key constraint failed',
+        details: 'Task has related records that must be deleted first'
+      }, { status: 400 })
+    }
+
+    return NextResponse.json({ 
+      error: 'Failed to permanently delete task',
+      details: error.message 
+    }, { status: 500 })
   }
 }

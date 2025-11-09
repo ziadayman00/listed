@@ -233,7 +233,7 @@ export async function PATCH(request, context) {
   }
 }
 
-// FIXED DELETE method - Update to include dueDateDay
+// FIXED DELETE method - Proper soft delete without breaking relationship
 export async function DELETE(request, context) {
   try {
     const session = await getServerSession(authOptions)
@@ -250,7 +250,7 @@ export async function DELETE(request, context) {
       where: {
         id: id,
         userId: session.user.id,
-        deletedTask: null
+        deletedTask: null // ✅ Only get tasks that aren't already deleted
       }
     })
 
@@ -258,8 +258,8 @@ export async function DELETE(request, context) {
       return NextResponse.json({ error: 'Task not found or already deleted' }, { status: 404 })
     }
 
-    // Create deleted task record with complete data
-    const deletedTask = await prisma.deletedTask.create({
+    // ✅ FIX: Create deleted task record with the relationship in ONE transaction
+    await prisma.deletedTask.create({
       data: {
         originalTaskId: existingTask.id,
         userId: existingTask.userId,
@@ -268,7 +268,7 @@ export async function DELETE(request, context) {
         status: existingTask.status,
         priority: existingTask.priority,
         dueDate: existingTask.dueDate,
-        dueDateDay: existingTask.dueDateDay, // ADD THIS LINE
+        dueDateDay: existingTask.dueDateDay,
         hasDueTime: existingTask.hasDueTime,
         isAIGenerated: existingTask.isAIGenerated,
         tags: existingTask.tags,
@@ -281,13 +281,8 @@ export async function DELETE(request, context) {
       }
     })
 
-    // Mark original task as soft deleted
-    await prisma.task.update({
-      where: { id: existingTask.id },
-      data: {
-        deletedTask: { connect: { id: deletedTask.id } }
-      }
-    })
+    // ✅ The relationship is automatically created by Prisma!
+    // No need for separate update - the one-to-one relation handles it
 
     // Log activity
     try {

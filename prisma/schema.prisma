@@ -8,6 +8,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // Enums
@@ -134,40 +135,38 @@ model Task {
   description   String?      @db.Text
   status        TaskStatus   @default(PENDING)
   priority      TaskPriority @default(MEDIUM)
-  dueDate       DateTime?    // For tasks with specific time
-  dueDateDay    String?      // ADD THIS LINE - for date-only tasks (YYYY-MM-DD)
+  dueDate       DateTime?
+  dueDateDay    String?
   hasDueTime    Boolean      @default(false)
   isAIGenerated Boolean      @default(false)
 
-  // New enhanced fields
   tags          String[]
   category      String?
   estimatedTime Int?
   reminders     Json?
 
-  // Timestamps
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   completedAt DateTime?
 
-  // Relations
   userId        String
   user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   aiLogs        AILog[]
-  deletedTask   DeletedTask?
+  deletedTask   DeletedTask?    @relation("TaskToDeletedTask")  // ✅ ADD NAME HERE
   reminderQueue ReminderQueue[]
 
-  // Indexes for better performance
   @@index([userId])
   @@index([status])
   @@index([priority])
   @@index([dueDate])
-  @@index([dueDateDay])  // ADD THIS INDEX TOO
+  @@index([dueDateDay])
   @@index([createdAt])
   @@index([category])
   @@index([tags])
   @@map("tasks")
 }
+
+
 // AI Logs model
 model AILog {
   id       String       @id @default(cuid())
@@ -349,18 +348,16 @@ enum UserActivityType {
 }
 
 // New model for soft-deleted tasks
-// Updated DeletedTask model for proper soft delete functionality
 model DeletedTask {
   id             String @id @default(cuid())
-  originalTaskId String @unique // Link to the original task ID
+  originalTaskId String @unique
 
-  // Copy all task fields for complete restoration
   title         String
   description   String?      @db.Text
   status        TaskStatus   @default(PENDING)
   priority      TaskPriority @default(MEDIUM)
-  dueDate       DateTime?    // For tasks with specific time
-  dueDateDay    String?      // For date-only tasks (YYYY-MM-DD format)
+  dueDate       DateTime?
+  dueDateDay    String?
   hasDueTime    Boolean      @default(false)
   isAIGenerated Boolean      @default(false)
   tags          String[]
@@ -368,24 +365,20 @@ model DeletedTask {
   estimatedTime Int?
   reminders     Json?
 
-  // Original timestamps (preserved from original task)
   originalCreatedAt   DateTime
   originalUpdatedAt   DateTime
   originalCompletedAt DateTime?
 
-  // Deletion timestamp
   deletedAt DateTime @default(now())
 
-  // Relations
   userId       String
   user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  originalTask Task   @relation(fields: [originalTaskId], references: [id], onDelete: Cascade)
+  originalTask Task   @relation("TaskToDeletedTask", fields: [originalTaskId], references: [id], onDelete: NoAction, onUpdate: NoAction)  // ✅ CHANGED: Cascade → NoAction
 
-  // Indexes
   @@index([userId])
   @@index([deletedAt])
   @@index([originalTaskId])
-  @@index([dueDateDay])  // Index for the new field
+  @@index([dueDateDay])
   @@map("deleted_tasks")
 }
 

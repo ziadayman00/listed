@@ -19,6 +19,12 @@ export async function GET() {
     const weekFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     const weekFromNowString = weekFromNow.toISOString().split('T')[0]
 
+    // ✅ FIX: Base filter to exclude deleted tasks
+    const baseWhere = {
+      userId: session.user.id,
+      deletedTask: { is: null }  // ✅ EXCLUDE TRASHED TASKS
+    }
+
     // Get task statistics
     const [
       totalTasks,
@@ -29,15 +35,15 @@ export async function GET() {
       todayTasks,
       thisWeekTasks
     ] = await Promise.all([
-      // Total tasks
+      // Total tasks (excluding deleted)
       prisma.task.count({
-        where: { userId: session.user.id }
+        where: baseWhere
       }),
       
       // Completed tasks
       prisma.task.count({
         where: { 
-          userId: session.user.id,
+          ...baseWhere,
           status: 'COMPLETED'
         }
       }),
@@ -45,7 +51,7 @@ export async function GET() {
       // Pending tasks
       prisma.task.count({
         where: { 
-          userId: session.user.id,
+          ...baseWhere,
           status: 'PENDING'
         }
       }),
@@ -53,7 +59,7 @@ export async function GET() {
       // In progress tasks
       prisma.task.count({
         where: { 
-          userId: session.user.id,
+          ...baseWhere,
           status: 'IN_PROGRESS'
         }
       }),
@@ -61,7 +67,7 @@ export async function GET() {
       // Overdue tasks - Fixed to handle both dueDate and dueDateDay
       prisma.task.count({
         where: { 
-          userId: session.user.id,
+          ...baseWhere,
           status: { in: ['PENDING', 'IN_PROGRESS'] },
           OR: [
             // Tasks with specific datetime that are overdue
@@ -82,7 +88,7 @@ export async function GET() {
       // Tasks due today - Fixed to handle both date types
       prisma.task.count({
         where: { 
-          userId: session.user.id,
+          ...baseWhere,
           status: { in: ['PENDING', 'IN_PROGRESS'] },
           OR: [
             // Tasks with specific datetime due today
@@ -106,7 +112,7 @@ export async function GET() {
       // Tasks due this week - Fixed to handle both date types
       prisma.task.count({
         where: { 
-          userId: session.user.id,
+          ...baseWhere,
           status: { in: ['PENDING', 'IN_PROGRESS'] },
           OR: [
             // Tasks with specific datetime due this week
@@ -134,11 +140,11 @@ export async function GET() {
     // Calculate completion rate
     const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
 
-    // Get priority breakdown
+    // Get priority breakdown (excluding deleted)
     const priorityStats = await prisma.task.groupBy({
       by: ['priority'],
       where: { 
-        userId: session.user.id,
+        ...baseWhere,
         status: { in: ['PENDING', 'IN_PROGRESS'] }
       },
       _count: true
@@ -154,13 +160,12 @@ export async function GET() {
       priorityBreakdown[stat.priority] = stat._count
     })
 
-    // Get recent activity (last 7 days)
+    // Get recent activity (last 7 days, excluding deleted)
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
     
-    // Fixed: Group by date part only, not full timestamp
     const recentActivity = await prisma.task.findMany({
       where: {
-        userId: session.user.id,
+        ...baseWhere,
         createdAt: { gte: sevenDaysAgo }
       },
       select: {
@@ -176,10 +181,10 @@ export async function GET() {
       return acc
     }, {})
 
-    // Get productivity trend (tasks completed per day for last 7 days)
+    // Get productivity trend (excluding deleted)
     const completedTasksLastWeek = await prisma.task.findMany({
       where: {
-        userId: session.user.id,
+        ...baseWhere,
         status: 'COMPLETED',
         completedAt: { 
           gte: sevenDaysAgo,

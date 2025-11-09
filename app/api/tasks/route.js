@@ -100,7 +100,9 @@ export async function GET(request) {
 
     const where = {
       userId: session.user.id,
-      deletedTask: null,
+      deletedTask: {
+        is: null  // ✅ FIXED: Proper way to filter null relations
+      },
       ...(status && { status: status.toUpperCase() }),
       ...(priority && { priority: priority.toUpperCase() }),
       ...(category && { category }),
@@ -122,19 +124,16 @@ export async function GET(request) {
         { status: 'asc' },
         { priority: 'desc' },
         { dueDate: 'asc' },
-        { dueDateDay: 'asc' }, // Add ordering by date day too
+        { dueDateDay: 'asc' },
         { createdAt: 'desc' }
       ],
       ...(limit && { take: limit }),
       ...(limit && { skip: (page - 1) * limit })
     })
 
-    // FIXED: Format tasks for client with proper date handling
     const formattedTasks = tasks.map(task => ({
       ...task,
-      // For client consumption: use dueDateDay for date-only tasks, dueDate for datetime tasks
       dueDate: task.hasDueTime ? task.dueDate?.toISOString() : task.dueDateDay,
-      // Keep the raw fields for internal use
       dueDateDay: task.dueDateDay,
       hasDueTime: task.hasDueTime
     }))
@@ -157,7 +156,6 @@ export async function GET(request) {
     )
   }
 }
-
 // FIXED: POST /api/tasks with proper date storage
 export async function POST(request) {
   try {
